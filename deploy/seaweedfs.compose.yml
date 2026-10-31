@@ -1,22 +1,40 @@
 services:
+  # Master + volume + filer. Their ports have no authentication, so this
+  # service stays on the private "storage" network only. Dokploy attaches
+  # dokploy-network (shared with every other app) to the service that owns a
+  # domain, which is why S3 runs as the separate "s3" service below.
   seaweedfs:
     image: chrislusf/seaweedfs:4.48
     restart: unless-stopped
+    command: server -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -volume.max=0 -filer
+    volumes:
+      - seaweedfs-data:/data
+    networks:
+      - storage
+
+  # Authenticated S3 gateway, the only entry point exposed through Traefik.
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
     environment:
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY must be set}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY must be set}
+    depends_on:
+      - seaweedfs
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        set -e
+        [ -n "$${S3_ACCESS_KEY}" ] && [ -n "$${S3_SECRET_KEY}" ] || { echo "S3 credentials missing"; exit 1; }
         cat > /tmp/s3.json <<EOF
         {"identities":[{"name":"admin","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
         EOF
-        exec weed server -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -volume.max=0 -filer -s3 -s3.config=/tmp/s3.json
-    volumes:
-      - seaweedfs-data:/data
+        exec weed s3 -filer=seaweedfs:8888 -ip.bind=0.0.0.0 -port=8333 -config=/tmp/s3.json
+    networks:
+      - storage
 
   # FUSE-mounts the "music" bucket on the host at /srv/mymusic/music, which
-  # the Polaris application bind-mounts read-only at /music.
+  # the Polaris application bind-mounts at /music.
   mount:
     image: chrislusf/seaweedfs:4.48
     restart: unless-stopped
@@ -35,6 +53,12 @@ services:
         bind:
           propagation: rshared
           create_host_path: true
+    networks:
+      - storage
+
+networks:
+  storage:
+    internal: true
 
 volumes:
   seaweedfs-data:

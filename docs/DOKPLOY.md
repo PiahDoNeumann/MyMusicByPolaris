@@ -79,8 +79,10 @@ upload S3 ──► SeaweedFS (bucket music) ──► weed mount ──► /srv
 No projeto do Dokploy, serviço **Compose** `SeaweedFS` (raw), com o conteúdo de
 [`deploy/seaweedfs.compose.yml`](../deploy/seaweedfs.compose.yml):
 
-- `seaweedfs`: master + volume + filer + S3, dados no volume `seaweedfs-data`.
-  Domínio `s3-mymusic.patobragado.com.br` → porta `8333`.
+- `seaweedfs`: master + volume + filer, dados no volume `seaweedfs-data`. Fica só
+  na rede interna `storage`: essas portas não têm autenticação.
+- `s3`: gateway S3 autenticado, único serviço na `dokploy-network`.
+  Domínio `s3-mymusic.patobragado.com.br` → serviço `s3`, porta `8333`.
 - `mount`: `weed mount` do bucket `music` em `/srv/mymusic/music` no host
   (propagação `rshared`, precisa de `privileged` e `/dev/fuse`).
 - Environment do compose: `S3_ACCESS_KEY` e `S3_SECRET_KEY`.
@@ -112,6 +114,8 @@ arquivos não enxerga mudanças feitas pelo FUSE.
 
 ### Cuidados
 
+- Não ponha domínio no serviço `seaweedfs`: o Dokploy o ligaria à
+  `dokploy-network` e qualquer app do servidor leria o filer sem senha.
 - Se o serviço `SeaweedFS` reiniciar, o mount FUSE é refeito; reinicie a
   aplicação Polaris em seguida para ela enxergar o mount novo.
 - `/music` é só leitura na prática: apagar e renomear se faz no bucket.

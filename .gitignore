@@ -26,3 +26,6 @@ release
 
 # Local secrets
 .env
+
+# Personal Spotify data exports (contain IP addresses)
+docs/*Spotify*

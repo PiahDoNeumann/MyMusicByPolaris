@@ -6,6 +6,9 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:4.48
     restart: unless-stopped
+    # Bypasses the image entrypoint, which drops privileges: /data was created
+    # by root and the master fails with "permission denied" otherwise.
+    entrypoint: ["weed"]
     command: server -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -volume.max=0 -filer
     volumes:
       - seaweedfs-data:/data
@@ -45,11 +48,14 @@ services:
       - seaweedfs
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - sleep 15 && exec weed mount -filer=seaweedfs:8888 -filer.path=/buckets/music -dir=/mnt/music -allowOthers -umask=022
+      - mkdir -p /mnt/mymusic/music && sleep 15 && exec weed mount -filer=seaweedfs:8888 -filer.path=/buckets/music -dir=/mnt/mymusic/music -allowOthers -umask=022 -map.uid=1000:0 -map.gid=1000:0
+    # The parent directory is bound, not /srv/mymusic/music itself: weed mount
+    # unmounts whatever sits on its target first, which would drop the bind and
+    # leave the FUSE mount invisible to the host.
     volumes:
       - type: bind
-        source: /srv/mymusic/music
-        target: /mnt/music
+        source: /srv/mymusic
+        target: /mnt/mymusic
         bind:
           propagation: rshared
           create_host_path: true

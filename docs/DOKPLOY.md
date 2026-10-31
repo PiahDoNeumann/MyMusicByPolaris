@@ -89,6 +89,10 @@ No projeto do Dokploy, serviço **Compose** `SeaweedFS` (raw), com o conteúdo d
 
 Na aplicação Polaris: **Bind Mount** `/srv/mymusic/music` → `/music`.
 
+Também na aplicação Polaris, **Swarm Settings → Update Config** com `Order` =
+`stop-first`. O banco embutido aceita um processo só; com `start-first` o
+container novo morre com `Could not initialize database`.
+
 ### Enviar músicas
 
 Qualquer cliente S3 (rclone, Cyberduck, WinSCP, `aws s3`), com:

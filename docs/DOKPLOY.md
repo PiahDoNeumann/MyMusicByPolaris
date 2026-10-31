@@ -116,6 +116,23 @@ Depois do upload, dispare o scan da coleção nas configurações da UI do Polar
 (ou `POST /api/trigger_index`). Não há rescan periódico, e o watcher de
 arquivos não enxerga mudanças feitas pelo FUSE.
 
+[`deploy/enviar.ps1`](../deploy/enviar.ps1) faz os dois passos: `rclone copy`
+de uma pasta de álbum e scan via API (usuário precisa ser admin). Requer
+`rclone` no PATH com o remote `mymusic` e estas variáveis de ambiente:
+
+```powershell
+$env:POLARIS_URL = "https://musica.seudominio.com"
+$env:POLARIS_USER = "admin"
+$env:POLARIS_PASSWORD = "..."
+```
+
+```powershell
+./deploy/enviar.ps1 "D:\Musicas\Artista\Album"
+```
+
+Destino no bucket = duas últimas pastas da origem (`Artista/Album`); use
+`-Destino "Artista/Album"` quando a pasta local tiver outro nome.
+
 ### Cuidados
 
 - Não ponha domínio no serviço `seaweedfs`: o Dokploy o ligaria à

@@ -23,3 +23,6 @@ profile.json
 # Release process artifacts (usually runs on CI)
 release
 *.res
+
+# Local secrets
+.env

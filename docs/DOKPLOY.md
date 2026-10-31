@@ -66,3 +66,52 @@ docker build -t polaris .
 ```bash
 docker run --rm -p 5050:5050 -v polaris-data:/data -v /caminho/das/musicas:/music:ro polaris
 ```
+
+## Músicas no SeaweedFS (S3)
+
+O Polaris não recebe upload de música: só lê `/music`. Os arquivos ficam num
+bucket S3 do SeaweedFS, montado no host via FUSE.
+
+```
+upload S3 ──► SeaweedFS (bucket music) ──► weed mount ──► /srv/mymusic/music (host) ──► /music (Polaris)
+```
+
+No projeto do Dokploy, serviço **Compose** `SeaweedFS` (raw), com o conteúdo de
+[`deploy/seaweedfs.compose.yml`](../deploy/seaweedfs.compose.yml):
+
+- `seaweedfs`: master + volume + filer + S3, dados no volume `seaweedfs-data`.
+  Domínio `s3-mymusic.patobragado.com.br` → porta `8333`.
+- `mount`: `weed mount` do bucket `music` em `/srv/mymusic/music` no host
+  (propagação `rshared`, precisa de `privileged` e `/dev/fuse`).
+- Environment do compose: `S3_ACCESS_KEY` e `S3_SECRET_KEY`.
+
+Na aplicação Polaris: **Bind Mount** `/srv/mymusic/music` → `/music`.
+
+### Enviar músicas
+
+Qualquer cliente S3 (rclone, Cyberduck, WinSCP, `aws s3`), com:
+
+| Campo      | Valor                                   |
+|------------|-----------------------------------------|
+| Endpoint   | `https://s3-mymusic.patobragado.com.br` |
+| Região     | `us-east-1`                             |
+| Bucket     | `music`                                 |
+| Path style | ligado                                  |
+
+Organize como pastas `Artista/Álbum/faixa.flac`, com a capa `Folder.jpg` ao lado.
+
+Exemplo com rclone (remote `mymusic` do tipo S3, provider `SeaweedFS`):
+
+```bash
+rclone copy "D:/Musicas/Artista" mymusic:music/Artista --progress
+```
+
+Depois do upload, dispare o scan da coleção nas configurações da UI do Polaris
+(ou `POST /api/trigger_index`). Não há rescan periódico, e o watcher de
+arquivos não enxerga mudanças feitas pelo FUSE.
+
+### Cuidados
+
+- Se o serviço `SeaweedFS` reiniciar, o mount FUSE é refeito; reinicie a
+  aplicação Polaris em seguida para ela enxergar o mount novo.
+- `/music` é só leitura na prática: apagar e renomear se faz no bucket.

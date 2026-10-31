@@ -1,0 +1,40 @@
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        cat > /tmp/s3.json <<EOF
+        {"identities":[{"name":"admin","credentials":[{"accessKey":"$${S3_ACCESS_KEY}","secretKey":"$${S3_SECRET_KEY}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        EOF
+        exec weed server -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -volume.max=0 -filer -s3 -s3.config=/tmp/s3.json
+    volumes:
+      - seaweedfs-data:/data
+
+  # FUSE-mounts the "music" bucket on the host at /srv/mymusic/music, which
+  # the Polaris application bind-mounts read-only at /music.
+  mount:
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/fuse
+    depends_on:
+      - seaweedfs
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - sleep 15 && exec weed mount -filer=seaweedfs:8888 -filer.path=/buckets/music -dir=/mnt/music -allowOthers -umask=022
+    volumes:
+      - type: bind
+        source: /srv/mymusic/music
+        target: /mnt/music
+        bind:
+          propagation: rshared
+          create_host_path: true
+
+volumes:
+  seaweedfs-data:

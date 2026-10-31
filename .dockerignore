@@ -1,0 +1,11 @@
+.git
+.github
+.direnv
+.vscode
+target
+test-output
+release
+docker
+docs
+Dockerfile
+.dockerignore
